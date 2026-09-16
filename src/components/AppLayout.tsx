@@ -1,167 +1,147 @@
-import React from 'react';
-import { AppStoreProvider, useApp } from '@/store/AppStore';
-import { cx } from '@/lib/helpers';
-import { Compass, Ticket, LayoutDashboard, User, ShoppingCart, Shield, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { DemoProvider, useDemo } from '@/contexts/DemoContext';
+import { BottomNav, OrgNav, RoleTransition } from '@/components/Chrome';
+import { Toast } from '@/components/ui/kit';
+import AuthSheet from '@/components/AuthSheet';
 
-import Explore from '@/screens/Explore';
-import Browse from '@/screens/Browse';
-import EventDetail from '@/screens/EventDetail';
-import Cart from '@/screens/Cart';
-import Holders from '@/screens/Holders';
-import Checkout from '@/screens/Checkout';
-import OrderSuccess from '@/screens/OrderSuccess';
-import Auth from '@/screens/Auth';
-import Help from '@/screens/Help';
-import { TicketsList, TicketDetail, WalletPass } from '@/screens/Tickets';
-import { Profile, Notifications, Payments, Following, Legal } from '@/screens/Profile';
-import Dashboard from '@/screens/organizer/Dashboard';
-import EventEditor from '@/screens/organizer/EventEditor';
-import { Orders, Roster } from '@/screens/organizer/Orders';
-import CheckIn from '@/screens/organizer/CheckIn';
-import { Layouts, LayoutBuilder } from '@/screens/organizer/Seating';
-import { Coupons, Announcements, Enquiries, Followers, Payouts, Team, Marketing } from '@/screens/organizer/Comms';
-import { Admin, DemoControls, DeepLinks, Analytics } from '@/screens/admin/Admin';
+import ExploreScreen from '@/screens/ExploreScreen';
+import EventDetailScreen from '@/screens/EventDetailScreen';
+import CheckoutScreen from '@/screens/CheckoutScreen';
+import TablePickerScreen from '@/screens/TablePickerScreen';
+import PaymentScreen from '@/screens/PaymentScreen';
+import { TicketsScreen, TicketDetailScreen } from '@/screens/TicketsScreen';
+import { ProfileScreen, NotificationsScreen } from '@/screens/ProfileScreen';
+import OrganizerDashboard from '@/screens/OrganizerDashboard';
+import AttendeesScreen from '@/screens/AttendeesScreen';
+import SeatingBuilder from '@/screens/SeatingBuilder';
+import ScannerScreen from '@/screens/ScannerScreen';
+import CreateEventFlow from '@/screens/CreateEventFlow';
 
-/* Every internal route in the Redeemed Events app */
-const ROUTES: Record<string, React.FC> = {
-  explore: Explore, browse: Browse, event: EventDetail, cart: Cart, holders: Holders, checkout: Checkout,
-  'order-success': OrderSuccess, auth: Auth, help: Help,
-  tickets: TicketsList, ticket: TicketDetail, wallet: WalletPass,
-  profile: Profile, notifications: Notifications, payments: Payments, following: Following, legal: Legal,
-  organize: Dashboard, 'event-editor': EventEditor, 'org-orders': Orders, 'org-roster': Roster, 'org-scan': CheckIn,
-  'org-layouts': Layouts, 'org-layout': LayoutBuilder, 'org-coupons': Coupons, 'org-announcements': Announcements,
-  'org-enquiries': Enquiries, 'org-followers': Followers, 'org-payouts': Payouts, 'org-team': Team, 'org-marketing': Marketing,
-  admin: Admin, 'demo-controls': DemoControls, 'deep-links': DeepLinks, analytics: Analytics,
+const Router: React.FC = () => {
+  const { screen } = useDemo();
+  switch (screen.k) {
+    case 'explore': return <ExploreScreen />;
+    case 'event': return <EventDetailScreen />;
+    case 'checkout': return <CheckoutScreen />;
+    case 'tables': return <TablePickerScreen />;
+    case 'payment': return <PaymentScreen />;
+    case 'tickets': return <TicketsScreen />;
+    case 'ticket': return <TicketDetailScreen />;
+    case 'profile': return <ProfileScreen />;
+    case 'notifications': return <NotificationsScreen />;
+    case 'org-dash': return <OrganizerDashboard />;
+    case 'org-attendees': return <AttendeesScreen />;
+    case 'org-seating': return <SeatingBuilder />;
+    case 'org-scan': return <ScannerScreen />;
+    case 'org-create': return <CreateEventFlow />;
+    default: return <ExploreScreen />;
+  }
 };
 
-const Shell: React.FC = () => {
-  const { current, tab, setTab, user, session, activeRole, cartCount, go, toasts, sel, booting, bootError, boot, syncing } = useApp();
-  const ActiveScreen = ROUTES[current.route] || Explore;
-  const showOrganize = !!user && (user.roles?.includes('organizer') || user.roles?.includes('team') || user.roles?.includes('admin'));
-  const unread = session ? sel.notifications().filter((n: any) => !n.read).length : 0;
+const Device: React.FC = () => {
+  const { screen, stack, mode, switching, toast, toastTone, authSheet, closeAuthSheet, runAuthNext } = useDemo();
 
-  const tabs = [
-    { key: 'explore', label: 'Explore', icon: Compass },
-    { key: 'tickets', label: 'Tickets', icon: Ticket },
-    ...(showOrganize ? [{ key: 'organize', label: 'Organize', icon: LayoutDashboard }] : []),
-    ...(activeRole === 'admin' ? [{ key: 'admin', label: 'Admin', icon: Shield }] : []),
-    { key: 'profile', label: 'Profile', icon: User },
-  ];
+  const scroller = useRef<HTMLDivElement>(null);
 
-  /* Connecting to the shared live database */
-  if (booting || bootError) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950 px-6">
-        <div className="text-center max-w-sm">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white grid place-items-center font-bold mx-auto">RE</div>
-          <p className="mt-4 text-[17px] font-bold text-slate-900 dark:text-white">Redeemed Events</p>
-          {bootError ? (
-            <>
-              <p className="mt-2 text-[13.5px] text-rose-600">{bootError}</p>
-              <button onClick={boot} className="mt-4 h-11 px-5 rounded-xl bg-indigo-600 text-white text-sm font-semibold">Retry connection</button>
-            </>
-          ) : (
-            <>
-              <p className="mt-2 text-[13.5px] text-slate-500">Syncing the live event database…</p>
-              <div className="mt-4 h-1.5 w-40 mx-auto rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                <div className="h-full w-1/2 bg-indigo-600 animate-pulse" />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // Reset scroll on navigation
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [screen.k, screen.id, stack.length]);
+
+  const darkShell = mode === 'organizer';
+  const hideNav = screen.k === 'ticket' || screen.k === 'org-create';
 
   return (
+    <div className={`relative flex h-full w-full flex-col overflow-hidden ${darkShell ? 'bg-ink-900' : 'bg-ivory'}`}>
+      {/* Status bar */}
+      <div className={`z-40 flex shrink-0 items-center justify-between px-6 pb-1 pt-3 text-[11.5px] font-bold ${darkShell ? 'text-ivory' : 'text-ink'}`}>
 
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      <div className="md:flex">
-        {/* Desktop / tablet navigation rail */}
-        <aside className="hidden md:flex md:flex-col w-60 shrink-0 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="flex items-center gap-2 px-2 py-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white grid place-items-center font-bold text-[13px]">RE</div>
-            <div><p className="font-bold text-[15px] leading-tight">Redeemed</p><p className="text-[11px] text-slate-500">Events</p></div>
-          </div>
-          <nav className="mt-4 space-y-1">
-            {tabs.map((t) => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={cx('w-full flex items-center gap-3 px-3 h-11 rounded-xl text-[14px] font-medium transition',
-                  tab === t.key ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800')}>
-                <t.icon className="w-5 h-5" />{t.label}
-              </button>
+        <span>9:41</span>
+        <div className="flex items-center gap-1.5">
+          <span className="flex items-end gap-[2px]">
+            {[3, 5, 7, 9].map(h => (
+              <span key={h} className="w-[3px] rounded-sm bg-current" style={{ height: `${h}px` }} />
             ))}
-            <button onClick={() => go('cart')} className="w-full flex items-center gap-3 px-3 h-11 rounded-xl text-[14px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-              <ShoppingCart className="w-5 h-5" />Cart
-              {cartCount > 0 && <span className="ml-auto bg-indigo-600 text-white text-[11px] rounded-full px-2 py-0.5">{cartCount}</span>}
-            </button>
-            {!session && <button onClick={() => go('auth')} className="w-full flex items-center gap-3 px-3 h-11 rounded-xl text-[14px] font-semibold text-indigo-600">Sign in</button>}
-          </nav>
-          {user && (
-            <div className="mt-auto flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800">
-              <img src={user.avatar} alt="" className="w-8 h-8 rounded-full" />
-              <div className="min-w-0"><p className="text-[12.5px] font-medium truncate">{user.name}</p><p className="text-[11px] text-slate-500 capitalize">{activeRole}</p></div>
-            </div>
-          )}
-        </aside>
-
-        {/* Active screen */}
-        <main className="flex-1 min-w-0 max-w-3xl mx-auto w-full">
-          <ActiveScreen key={current.route + JSON.stringify(current.params || {})} />
-        </main>
+          </span>
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+            <path d="M12 18.5a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zM7.8 15.2l1.5 1.5a3.9 3.9 0 0 1 5.4 0l1.5-1.5a6 6 0 0 0-8.4 0zM4.6 12l1.5 1.5a8.4 8.4 0 0 1 11.8 0L19.4 12a10.5 10.5 0 0 0-14.8 0z" />
+          </svg>
+          <span className="relative ml-0.5 inline-flex h-3 w-6 items-center rounded-[3px] border border-current px-[2px]">
+            <span className="h-[6px] w-full rounded-[1px] bg-current" />
+          </span>
+        </div>
       </div>
 
-      {/* Live sync indicator — realtime updates from other devices */}
-      {syncing && (
-        <div className="fixed top-3 right-3 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600/95 text-white text-[11px] font-semibold shadow">
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />Live sync
+      {/* Scroll area — intentionally NOT `relative` so bottom sheets and sticky CTAs anchor to the device frame */}
+      <div
+        ref={scroller}
+        data-scroll
+        className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar ${hideNav ? '' : 'pb-[76px]'}`}
+      >
+
+        <div key={`${screen.k}-${screen.id ?? ''}-${stack.length}`} className="min-h-full animate-fade-in">
+          <Router />
         </div>
-      )}
-
-
-      {/* Floating cart (mobile) */}
-      {cartCount > 0 && current.route !== 'cart' && current.route !== 'checkout' && (
-        <button onClick={() => go('cart')} aria-label="Open cart"
-          className="md:hidden fixed right-4 bottom-24 z-30 h-12 px-4 rounded-full bg-indigo-600 text-white shadow-lg flex items-center gap-2 text-[14px] font-semibold">
-          <ShoppingCart className="w-4 h-4" />{cartCount}
-        </button>
-      )}
-
-      {/* Bottom tab bar (mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)]">
-        <div className="flex">
-          {tabs.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)} aria-label={t.label}
-              className={cx('flex-1 py-2.5 flex flex-col items-center gap-0.5 min-h-[56px] justify-center',
-                tab === t.key ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400')}>
-              <span className="relative">
-                <t.icon className="w-5 h-5" />
-                {t.key === 'profile' && unread > 0 && <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-rose-500" />}
-              </span>
-              <span className="text-[10.5px] font-medium">{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* Toasts */}
-      <div className="fixed top-4 inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 pointer-events-none">
-        {toasts.map((t: any) => (
-          <div key={t.id} className={cx('px-4 py-2.5 rounded-xl shadow-lg text-[13.5px] font-medium flex items-center gap-2 max-w-md',
-            t.kind === 'error' ? 'bg-rose-600 text-white' : t.kind === 'info' ? 'bg-slate-900 text-white' : 'bg-emerald-600 text-white')}>
-            {t.kind === 'error' ? <AlertCircle className="w-4 h-4" /> : t.kind === 'info' ? <Info className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-            {t.text}
-          </div>
-        ))}
       </div>
+
+      {!hideNav && (mode === 'organizer' ? <OrgNav /> : <BottomNav />)}
+      <AuthSheet
+        open={authSheet.open}
+        headline={authSheet.headline}
+        sub={authSheet.sub}
+        onClose={closeAuthSheet}
+        onSuccess={runAuthNext}
+      />
+      <Toast message={toast} tone={toastTone} />
+      <RoleTransition show={switching} to={mode === 'organizer' ? 'attendee' : 'organizer'} />
     </div>
   );
 };
 
+
 const AppLayout: React.FC = () => (
-  <AppStoreProvider>
-    <Shell />
-  </AppStoreProvider>
+  <DemoProvider>
+    <div className="relative min-h-screen w-full overflow-hidden bg-ink-900">
+      {/* Ambient backdrop for large screens */}
+      <div className="pointer-events-none absolute inset-0 hidden lg:block">
+        <div className="absolute inset-0"
+          style={{ background: 'radial-gradient(circle at 22% 18%, rgba(201,165,87,0.22), transparent 42%), radial-gradient(circle at 78% 82%, rgba(232,81,56,0.2), transparent 45%), linear-gradient(160deg, #0A101C, #121C2E)' }} />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[440px] flex-col lg:max-w-none lg:flex-row lg:items-center lg:justify-center lg:gap-16 lg:px-16">
+        {/* Desktop marketing rail */}
+        <aside className="hidden max-w-[420px] lg:block">
+          <p className="text-[11px] font-bold uppercase tracking-label text-champagne">Product demo · 2026</p>
+          <h1 className="mt-4 font-display text-[54px] leading-[0.95] tracking-[-0.02em] text-ivory">
+            Redeemed<br />Events
+          </h1>
+          <p className="mt-5 text-[15px] leading-relaxed text-ivory/65">
+            One app, two experiences. Discover events worth showing up for, choose exactly where you’ll sit,
+            and run the whole room from the door — attendee and organizer modes in a single premium product.
+          </p>
+          <div className="mt-8 space-y-3.5">
+            {[
+              'Editorial discovery with live availability',
+              'Interactive table & placement picker',
+              'Wallet-grade digital tickets with QR check-in',
+              'Organizer dashboard, seating builder and scanner',
+            ].map(f => (
+              <div key={f} className="flex items-start gap-3">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-coral" />
+                <span className="text-[13.5px] font-medium text-ivory/75">{f}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-9 text-[12px] text-ivory/40">Interact with the app on the right — every flow is live.</p>
+        </aside>
+
+        {/* App surface */}
+        <div className="relative flex min-h-screen w-full flex-col lg:min-h-0 lg:h-[880px] lg:max-h-[88vh] lg:w-[420px] lg:shrink-0 lg:overflow-hidden lg:rounded-[42px] lg:shadow-[0_50px_120px_-40px_rgba(0,0,0,0.75)]">
+          <Device />
+        </div>
+      </div>
+    </div>
+  </DemoProvider>
 );
 
 export default AppLayout;
